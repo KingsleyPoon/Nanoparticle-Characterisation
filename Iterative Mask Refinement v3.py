@@ -453,23 +453,6 @@ def analyse_single_nanoparticle(nanoparticle_info,regions):
     labelDuplicate = label(regionOfInterest)
     regionsDuplicate = regionprops(labelDuplicate)
 
-    '''
-    elementIndexToAnalyse = 0
-    largestArea = 0
-    for j in range(0,len(regionsDuplicate)):
-        if regionsDuplicate[j].filled_area > largestArea:
-            elementIndexToAnalyse = j
-            largestArea = regionsDuplicate[j].filled_area
-    
-    
-    #Redraw the image to be analysed containing ONLY the NP we are interested in
-    object = regionsDuplicate[elementIndexToAnalyse]
-    regionOfInterest[:,:] = 0
-    x = object.coords[:,0]
-    y = object.coords[:,1]
-    regionOfInterest[x,y]=1
-    '''
-
     # Find the largest element
     object = max(regionsDuplicate, key=lambda r: r.filled_area)
 
@@ -497,9 +480,13 @@ def analyse_single_nanoparticle(nanoparticle_info,regions):
             (minFeret*0.95,minFeret*AR*1.05),
             (0,180),
             (0,minFeret/2*1.05))
-
+    
+    #Creating these variables outside differential evolution function to minimize redundant recalls of the same code.
+    x_, y_ = np.meshgrid(np.arange(size), np.arange(size))
+    mask = np.zeros((size,size))
+        
     results = scipy.optimize.differential_evolution(
-        lambda params: object_min_function(params,regionOfInterest),
+        lambda params: object_min_function(params,regionOfInterest.astype(np.uint8),x_,y_,mask),
         strategy = 'best1bin',
         bounds = bnds,
         tol = 0.001,
@@ -526,7 +513,7 @@ def analyse_single_nanoparticle(nanoparticle_info,regions):
 Objective Function used to evaluate the fitting
 '''
 
-def object_min_function(params,regionOfInterest):
+def object_min_function(params,regionOfInterest,x_,y_,mask):
     
     yMaskSize,xMaskSize = np.shape(regionOfInterest)
     
@@ -542,8 +529,6 @@ def object_min_function(params,regionOfInterest):
     if (r*2 > length) or (r*2>width):
         return 1e30
     
-    #Create mask size identical to input image
-    mask = np.zeros((yMaskSize,xMaskSize))
         
     #Defining boundaries of truncated square/rectangle (starting from verticals left to right - xvalues, and bottom to top  - yvalues )(Figure 1c)
     x1Boundary = int(centreX - length/2)
@@ -556,7 +541,6 @@ def object_min_function(params,regionOfInterest):
 
     
     #Draw the respective rectangles and circles and combine all the areas together
-    x_, y_ = np.meshgrid(range(yMaskSize), range(xMaskSize))
     circle1 =((x_-x3Boundary)**2 + (y_-y2Boundary+r)**2)<=r**2
     circle2 =((x_-x3Boundary)**2 + (y_-y1Boundary-r)**2)<=r**2
     circle3 =((x_-x2Boundary)**2 + (y_-y1Boundary-r)**2)<=r**2
@@ -564,7 +548,7 @@ def object_min_function(params,regionOfInterest):
     rectangle1 = ((x_ >= x2Boundary) & (x_ <= x3Boundary) & (y_ >= y1Boundary) & (y_ <= y2Boundary))
     rectangle2 = ((x_ >= x3Boundary) & (x_ <= x4Boundary) & (y_ >= y1Boundary+r) & (y_ <= y2Boundary -r))
     rectangle3 = ((x_ >= x1Boundary) & (x_ <= x2Boundary) & (y_ >= y1Boundary+r) & (y_ <= y2Boundary -r))
-    mask = np.any((circle1,circle2,circle3,circle4,rectangle1,rectangle2,rectangle3),axis=0)
+    mask = circle1 | circle2 | circle3 | circle4 | rectangle1 | rectangle2 | rectangle3
     
     #Convert boolean to numeric (0 for no NP, 1 for NP)
     mask = mask.astype('uint8')
@@ -574,7 +558,7 @@ def object_min_function(params,regionOfInterest):
         rotationMatrix = cv.getRotationMatrix2D((xMaskSize/2,yMaskSize/2),theta,1)
         mask = cv.warpAffine(mask,rotationMatrix,(xMaskSize,yMaskSize),flags = cv.INTER_CUBIC)
     
-    Difference = np.sum(np.logical_xor(regionOfInterest,mask))
+    Difference = np.count_nonzero(np.bitwise_xor(regionOfInterest, mask))
     return Difference**2
         
 '''
