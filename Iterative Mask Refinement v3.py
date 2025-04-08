@@ -44,7 +44,6 @@ class NPCharacterizationApp:
         
         self.root.geometry("600x450")
         root.resizable(False, False)
-        self.root.wm_attributes("-topmost", True)
         self.root.wm_attributes("-topmost", False)
         
         # Instance variable
