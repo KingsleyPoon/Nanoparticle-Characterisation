@@ -31,16 +31,16 @@ class NPCharacterizationApp:
     def __init__(self, root):
         
         
-        # Parallelization setup
-
+        # Application GUI set-up
         self.root = root
         self.root.title("NP Characterization Application (Parallel Computation)")
-        self.max_concurrent_tasks = os.cpu_count() - 1
-        self.executor = ProcessPoolExecutor(max_workers = self.max_concurrent_tasks)
-        
         self.root.geometry("600x450")
         root.resizable(False, False)
         self.root.wm_attributes("-topmost", False)
+        
+        #Setup for parllelisation
+        self.max_concurrent_tasks = os.cpu_count() - 1
+        self.executor = ProcessPoolExecutor(max_workers = self.max_concurrent_tasks)
         
         # Instance variable
         self.img_label = None
@@ -70,7 +70,6 @@ class NPCharacterizationApp:
         self.progress_label = tk.Label(self.root, text="0/0 Completed", font=("Helvetica", 10))
         self.progress_label.place(anchor='center',relx=0.85, rely=0.61)
 
-        
         self.scale_label = tk.Label(self.root, text="Scale (px/nm)", font=("Helvetica", 9))
         self.scale_label.place(relx=0.73, rely=0.325)
         self.scale_number = tk.Entry(self.root, justify='right', width=5)  # Align text right
@@ -88,7 +87,6 @@ class NPCharacterizationApp:
         self.min_area_number.config(validate="key")
         self.min_area_number.config(validatecommand=(self.root.register(self.validate_input), '%P'))
 
-        
         self.max_area = tk.Label(self.root, text="Max Area (nm²)", font=("Helvetica", 9))
         self.max_area.place(relx=0.73, rely=0.452)
         self.max_area_number = tk.Entry(self.root, justify='right', width=10)  # Align text right
@@ -105,6 +103,7 @@ class NPCharacterizationApp:
         self.circularity_min.config(validate="key")
         self.circularity_min.config(validatecommand=(self.root.register(self.validate_input), '%P'))
 
+    #Validation of input    
     def validate_input(self, new_value):
         # Allow only digits and one decimal point
         if new_value == "":
@@ -116,7 +115,7 @@ class NPCharacterizationApp:
         except ValueError:
             return False
 
-            
+    # Allows for results to be viewed in a table        
     def view_results(self):
         # Create a new Toplevel window for the Treeview
         result_window = tk.Toplevel(self.root)
@@ -158,7 +157,8 @@ class NPCharacterizationApp:
         tree.bind("<Control-c>", self.copy_to_clipboard)
         # Bind Ctrl+A to select all rows
         tree.bind("<Control-a>", lambda event: self.select_all(tree))
-
+        
+    #Allows results to be copied to clipboard
     def copy_to_clipboard(self, event):
         # Get all selected items
         selected_items = event.widget.selection()
@@ -199,7 +199,7 @@ class NPCharacterizationApp:
         for item in tree.get_children():
             tree.selection_add(item)
         
-        # Function to open the file dialog and get the file path
+    # Function to open the file dialog and get the file path
     def open_file_dialog(self):
         file_paths = filedialog.askopenfilenames(title="Select a file", 
                                                     filetypes=[("Image Files", "*.tif; *.png;*.jpg;*.jpeg;*.gif;*.bmp")])
@@ -220,12 +220,11 @@ class NPCharacterizationApp:
                 self.analyze_button.config(state=tk.DISABLED)
                 print(e)
 
-
     def start_analysis_thread(self):
         
         self.stop_analysis_event.clear()
         
-        #Ensure the values in the criteria textboxes are valid
+        #Ensure the values in the threshold textboxes are valid inputs
         if self.scale_number.get() == "" or float(self.scale_number.get()) == 0:
             self.scale_number.delete(0,tk.END)
             self.scale_number.insert(0,"1")
@@ -253,8 +252,9 @@ class NPCharacterizationApp:
         #Start the background Thread
         thread = threading.Thread(target = self.analyse_background_task)
         thread.start()
-        self.start_time = time.time()
-        
+
+           
+    # Applies thresholding to NP regions
     def identify_nanoparticles(self):
         
         #Thresholding Parameters used to determine NP regions
@@ -291,11 +291,12 @@ class NPCharacterizationApp:
 
         return regions
     
+    #Cancels analysis process
     def cancel_analysis(self):
         self.stop_analysis_event.set()
         self.cancel_button.config(text = "Cancelling...",state=tk.DISABLED)
 
-
+    #Runs the analysis on the NPs
     def analyse_background_task(self):
 
         self.dimensionsarray = ["MinFeret","Orthogonal Length", "Radius","Circularity"]            
@@ -322,32 +323,23 @@ class NPCharacterizationApp:
                 # Remove completed futures from the list
                 self.futures = [future for future in self.futures if future not in completed]
                 
-                
             nanoparticle_info = {"bbox": nanoparticle.bbox}
-            
             
             future = self.executor.submit(analyse_single_nanoparticle, nanoparticle_info ,self.regions)
             self.futures.append(future)
             future.add_done_callback(self.handle_result)
                 
-                #Append to the existing array the shape characteristics of the individual NP
-                #self.dimensionsarray = np.vstack([self.dimensionsarray,[minFeretLength,orthogonalLength,radius,circularity]])
-
-
-        # Wait for all remaining tasks to finish
+        # Wait for all remaining tasks to finish and then update UI
         concurrent.futures.wait(self.futures)
-            
         self.root.after(0, self.update_gui_buttons)
         self.end_time = time.time()
-        print("Parallel Version Time:" + str(self.end_time - self.start_time))
-
 
     def handle_result(self, future):
         try:
             result = future.result()  # This is safe in a done callback
             minFeretLength, orthogonalLength, radius, circularity = result
             
-            # UI updates should be done in the main thread via `after`
+            # UI update
             self.root.after(0, self.process_analysis_result, minFeretLength, orthogonalLength, radius, circularity)
     
         except Exception as e:
@@ -418,11 +410,9 @@ class NPCharacterizationApp:
         else:
             return 0        
 
-
-    
+#Function used to set up analysis for each NP region
 def analyse_single_nanoparticle(nanoparticle_info,regions):
     
-   
     #Unpack values from dict
     bbox = nanoparticle_info["bbox"]
 
@@ -455,7 +445,6 @@ def analyse_single_nanoparticle(nanoparticle_info,regions):
     regionOfInterest[:,:] = 0
     regionOfInterest[tuple(zip(*object.coords))] = 1
 
-    
     AR = AR = object.major_axis_length / object.minor_axis_length
     
     feret_result = feret_calculate(regionOfInterest)
@@ -464,7 +453,6 @@ def analyse_single_nanoparticle(nanoparticle_info,regions):
     centroidY,centroidX = object.centroid
     
 
-    
     # Boundaries set for the optimisation problem
     # These boundaries are based on the initial parameters set and are not expected to deviate far away from these intial values
     # The size of the boundaries can be set to alter the solution space
@@ -502,32 +490,18 @@ def analyse_single_nanoparticle(nanoparticle_info,regions):
     circularity = 4 * math.pi * areaOfNP/(perimeterOfNP**2)
     
     return minFeretLength,orthogonalLength,radius,circularity
-    #return minFeretLength,orthogonalLength,radius,round(self.calculate_circularity(region),4)   
 
-'''
-Objective Function used to evaluate the fitting
-'''
-
+#Cost Function
 def object_min_function(params,regionOfInterest,x_,y_,mask):
     
     yMaskSize,xMaskSize = np.shape(regionOfInterest)
-    
-    #Define input variables
-    #centreY = int(params[0])
-    #centreX = int(params[1])
-    #width = int(params[2])
-    #length = int(params[3])
-    #r = int(params[5])
-    #theta = int(params[4])
-    
     centreY, centreX, width, length, theta, r = map(int, params)
     
     # Return a large cost function value if the radius guessed is larger than the either linear dimension
     # This prevents having radius of curvature that is larger than the either of the linear dimensions
     if (r*2 > length) or (r*2>width):
         return 1e30
-    
-        
+
     #Defining boundaries of truncated square/rectangle (starting from verticals left to right - xvalues, and bottom to top  - yvalues )(Figure 1c)
     x1Boundary = int(centreX - length/2)
     x2Boundary = int(centreX - length/2 + r)
@@ -549,11 +523,8 @@ def object_min_function(params,regionOfInterest,x_,y_,mask):
     circle2 = (x_ - xc2)**2 + (y_ - yc2)**2 <= r_squared
     circle3 = (x_ - xc3)**2 + (y_ - yc3)**2 <= r_squared
     circle4 = (x_ - xc4)**2 + (y_ - yc4)**2 <= r_squared
-    
     rectangle1 = ((x_ >= x2Boundary) & (x_ <= x3Boundary) & (y_ >= y1Boundary) & (y_ <= y2Boundary))
     rectangle2 = ((x_ >= x1Boundary) & (x_ <= x4Boundary) & (y_ >= yc3) & (y_ <= yc1))
-    
-    #rectangle3 = ((x_ >= x1Boundary) & (x_ <= x2Boundary) & (y_ >= y1Boundary+r) & (y_ <= y2Boundary -r))
     
     mask = circle1 | circle2 | circle3 | circle4 | rectangle1 | rectangle2
     
