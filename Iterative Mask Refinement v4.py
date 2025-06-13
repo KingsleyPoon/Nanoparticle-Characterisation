@@ -1,12 +1,10 @@
 '''
-    Version 3.
+    Version 4.
         Minor Changes:
             1) Updated objective function - drawing
             2) Fixed bug with cancelling processes
     
 '''
-
-
 
 import scipy
 import cv2 as cv
@@ -46,7 +44,7 @@ class NPCharacterizationApp:
         self.img_label = None
         self.mask = None
         self.regionOfInterest = None
-        self.dimensionsarray = np.array([["MinFeret", "Orthogonal Length", "Radius"]])
+        self.dimensionsarray = np.array([["MinFeret", "Orthogonal Length", "Radius", "Circularity"]])
         self.file_selected_text = "None"
         self.stop_analysis_event = threading.Event()
         
@@ -134,7 +132,8 @@ class NPCharacterizationApp:
             for i in range(3):  # Only the first three columns
                 row[i] = round(float(row[i]) / float(self.scale_number.get()), 3)
             
-            row[3] = round(float(row[3]) / float(self.scale_number.get()),4)
+            row[3] = round(float(row[3]),3)
+            #row[3] = round(float(row[3]) / float(self.scale_number.get()),4)
 
         # Set up columns and headers
         for column in headers:
