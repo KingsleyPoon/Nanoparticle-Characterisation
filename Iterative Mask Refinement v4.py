@@ -3,6 +3,8 @@
         Minor Changes:
             1) Updated objective function - drawing
             2) Fixed bug with cancelling processes
+
+Note: Parallelisation of code was achieved using AI.
     
 '''
 
